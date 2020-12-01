@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/ilcmartyden/public_html/dev/www/
+    - /bin/cp -r * $DEPLOYPATH

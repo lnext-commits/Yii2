@@ -1,0 +1,33 @@
+{
+  "name": "petto",
+  "version": "1.0.0",
+  "description": "",
+  "main": "gulpfile.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/ag.stomick/remix-toptrading.git"
+  },
+  "author": "Stomick",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/ag.stomick/remix-toptrading/issues"
+  },
+  "homepage": "https://gitlab.com/ag.stomick/remix-toptrading#readme",
+  "dependencies": {
+    "graceful-fs": "4.2.2"
+  },
+  "devDependencies": {
+    "gulp": "^4.0.2",
+    "gulp-autoprefixer": "^7.0.1",
+    "gulp-clean": "^0.4.0",
+    "gulp-clean-css": "^4.3.0",
+    "gulp-combine-mq": "^0.4.0",
+    "gulp-notify": "^3.2.0",
+    "gulp-rename": "^2.0.0",
+    "gulp-sass": "^4.1.0",
+    "gulp.spritesmith": "^6.11.0"
+  }
+}

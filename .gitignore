@@ -1,0 +1,7 @@
+/vendor/
+/landing/web/images/
+/logs/
+/landing/config/
+.idea/deployment.xml
+/.idea/*
+

@@ -1,0 +1,235 @@
+<?php
+
+namespace models;
+
+use bitrix\components\CRest;
+use models\ttl\TTlMajority;
+use models\ttl\TTlProductSupplier;
+use Yii;
+use yii\behaviors\TimestampBehavior;
+use yii\db\ActiveRecord;
+
+/**
+ * Products model
+ *
+ * @property integer $id
+ */
+class Product24 extends ActiveRecord
+{
+    /**
+     * @inheritdoc
+     */
+    public static function tableName()
+    {
+        return '{{%b24_products}}';
+    }
+
+    public static function getName($product_id)
+    {
+        if($pname = self::findOne(['field_id'=>5, 'product_id'=>$product_id])){
+            return $pname->value;
+        }
+        return '';
+    }
+
+    public static function getByName($name)
+    {
+        if($pname = self::find()->where(['field_id'=>5])->andWhere(['like','value',$name])->limit(25)->orderBy('value asc')->all()){
+            $ret = [];
+            foreach ($pname as $k => $p){
+                $ret[$k]=[
+                    'value' => $p->product_id,
+                    'text' => $p->value
+                ];
+            }
+            return $ret;
+        }
+        return [];
+    }
+
+    public static function getByNameCalc($name)
+    {
+
+        if($pname = self::find()
+            ->from('b24_products b24d')->where(['b24d.field_id'=>5])
+            ->innerJoin("b24_products b24d_PROPERTY_103", "b24d_PROPERTY_103.field_id=39 AND b24d_PROPERTY_103.product_id=b24d.product_id AND b24d_PROPERTY_103.value is not NULL")
+            ->innerJoin("b24_products b24d_PROPERTY_87", "b24d_PROPERTY_87.field_id=26 AND b24d_PROPERTY_87.product_id=b24d.product_id AND b24d_PROPERTY_87.value is not NULL")
+            ->innerJoin("b24_products b24d_PROPERTY_88", "b24d_PROPERTY_88.field_id=27 AND b24d_PROPERTY_88.product_id=b24d.product_id AND b24d_PROPERTY_88.value is not NULL")
+            ->innerJoin("b24_products b24d_PROPERTY_102", "b24d_PROPERTY_102.field_id=38 AND b24d_PROPERTY_102.product_id=b24d.product_id AND b24d_PROPERTY_102.value is not NULL")
+            ->andWhere(['like','b24d.value',$name])->limit(25)->orderBy('b24d.value asc')->all()){
+            $ret = [];
+            foreach ($pname as $k => $p){
+                $ret[$k]=[
+                    'id' => $p->product_id,
+                    'title' => $p->value
+                ];
+            }
+            return $ret;
+        }
+        return [];
+    }
+
+    public static function getPriceVat($id)
+    {
+        $price = str_replace(',' , '.' ,Product24::getValue(39, $id));
+        if($value = Product24::getValue(12,$id)) {
+            if ($vats = Vats::findOne($value->value))
+            return $price + $price / 100 * $vats->rate;
+        }
+        return $price;
+    }
+
+    public static function getSuppliers($id)
+    {
+        $ret = [];
+        foreach (TTlProductSupplier::findAll(['product_id'=>$id]) as $k=> $comp){
+            $price = $comp->price;
+            $newPrice = 0;
+            if($value = Product24::getValue(12,$id)) {
+                if ($vats = Vats::findOne($value->value))
+                    $newPrice = $price + $price / 100 * $vats->rate;
+            }
+            $ret[$k]=[
+                'id'=> $comp->company_id,
+                'price'=> $newPrice ? $newPrice : $price,
+                'title'=>Company24::getCompanyName($comp->company_id)
+            ];
+        }
+        return $ret;
+    }
+
+    public static function getSuppliersCalc($id, $price , $amount)
+    {
+        $index = 0;
+
+        foreach (TTlProductSupplier::find()->where(['product_id'=>$id])->orderBy('price DESC')->all() as $k=> $comp){
+            $price = $comp->price;
+            $ret[$index++]=[
+                'id'=> $comp->company_id,
+                'price'=> round($price , 3),
+                'title'=> Company24::getCompanyName($comp->company_id)
+            ];
+        }
+        if($index==0){
+            $ret[$index]=[
+                'id'=> 0,
+                'price'=> round($price, 3),
+                'title'=> 'Поставщик'
+            ];
+        }
+        return $ret;
+    }
+
+    public static function getBrandName($id)
+    {
+        if($prop = self::findOne(['product_id'=> $id , 'field_id'=>43 ])){
+            if ($brand = ProductsFieldsItem24::findOne(['id'=> $prop->value , 'fields_id'=> 43])) {
+                return $brand->value;
+            }
+        }
+        return ;
+    }
+
+
+    public function behaviors()
+    {
+        return [
+            TimestampBehavior::className(),
+        ];
+    }
+
+    public static function getValue($id , $prodId)
+    {
+        if($prop = self::findOne(['product_id'=> $prodId , 'field_id'=>$id ])){
+            switch ($id){
+                case 104:
+                    return  Company24::getCompanyName($prop->value);
+            }
+            return $prop->value;
+        }
+        return $id;
+    }
+
+
+    public function beforeSave($insert)
+    {
+        return parent::beforeSave($insert); // TODO: Change the autogenerated stub
+    }
+
+    public function afterSave($insert, $changedAttributes)
+    {
+        parent::afterSave($insert, $changedAttributes); // TODO: Change the autogenerated stub
+    }
+
+    static public function loadDealEntryFromB24(int $prodId)
+    {
+        $deal = CRest::call('crm.product.get', [
+            'id' => $prodId,
+        ]);
+
+        if ($deal && isset($deal['result']))
+            return $deal['result'];
+
+        return null;
+    }
+
+    static public function updateProducts($id)
+    {
+        $b24Pouct = self::loadDealEntryFromB24($id);
+        if(!$majority = TTlMajority::findOne(['type'=> 'product', 'type_id'=> $id])){
+            $majority = new TTlMajority();
+            $majority->company_id = 0;
+            $majority->type= 'product';
+            $majority->type_id = $id;
+            if($majority->save()){
+                foreach (TTlMajority::find()->select(['distinct(company_id)'])->where('company_id!=0')->all() as $k => $m){
+                    $majority = new TTlMajority();
+                    $majority->company_id = $m->company_id;
+                    $majority->type= 'product';
+                    $majority->type_id = $id;
+                    $majority->save();
+                }
+            }
+        }
+        if ($b24Pouct) {
+            foreach ($b24Pouct as $k => $value) {
+                if ($field = ProductsFields24::findOne(['name' => $k])) {
+                    if (!$product24 = self::findOne(['product_id' => $id, 'field_id' => $field->field_id])) {
+                        $product24 = new self();
+                        $product24->product_id = $id;
+                        $product24->field_id = $field->field_id;
+                    }
+                    if($field->name == 'PROPERTY_109') {
+                        if(is_array($value)){
+                        foreach ($value as $v => $val) {
+                            if (!$fieldsValue = TTlProductSupplier::find()->where(['product_id' => $id, 'company_id' => $val['value']])->one()) {
+                                $fieldsValue = new TTlProductSupplier();
+                                $fieldsValue->product_id = $id;
+                                $fieldsValue->company_id = $val['value'];
+                                $fieldsValue->valueId = $val['valueId'];
+                                $fieldsValue->user_id = Yii::$app->user->id ? Yii::$app->user->id : 0;
+                                $fieldsValue->save();
+                            } else {
+                                $fieldsValue->product_id = $id;
+                                $fieldsValue->company_id = $val['value'];
+                                $fieldsValue->valueId = $val['valueId'];
+                                $fieldsValue->update();
+                            }
+                        }
+                    }
+                    }else{
+                        if (is_array($value)) {
+                            $product24->value = $value['value'];
+                            $product24->valueId = $value['valueId'];
+                        } else {
+                            $product24->value = $value;
+                        }
+                        $product24->save();
+                    }
+
+                }
+            }
+        }
+        return $b24Pouct;
+    }
+}
